@@ -1,0 +1,111 @@
+import pandas as pd
+from sklearn.model_selection import cross_val_score
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+import numpy as np
+from sklearn.model_selection import cross_val_predict
+from sklearn import metrics
+import seaborn as sn
+import matplotlib.pyplot as plt
+import scikitplot as skplt
+
+def get_age_range(age):
+    """Function to get age related range based on atual age"""
+
+    if age <= 14:
+        return 'child'
+    elif age <= 24:
+        return 'young'
+    elif age <= 54:
+        return 'adult'
+    else:
+        return 'elderly'
+
+def get_title(name):
+    """Function to get titles from every name in data set"""
+
+    titles = ['Mr.', 'Miss.', 'Mrs.', 'Master.', 'Dr.', 'Rev.', 'Major.']
+
+    title = list(filter(lambda title: title in name, titles))
+
+    if len(title):
+        return title[0]
+
+    return 'no_title'
+
+
+
+train_data = pd.read_csv('train.csv')
+
+# Remove non-contributing attributes
+train_data = train_data.drop(['PassengerId', 'Ticket', 'Cabin'], axis=1)
+
+# Replace missing values by mode
+train_data['Embarked'].fillna(train_data['Embarked'].mode()[0], inplace=True)
+train_data['Age'].fillna(train_data['Age'].mode()[0], inplace=True)
+
+# Replace to 0 and 1 categorial data related to sex
+train_data['Sex'].replace(['male', 'female'], [0, 1], inplace=True)
+
+# Insert new variables from existing data
+train_data['Age_range'] = train_data['Age'].apply(get_age_range)
+train_data['Title'] = train_data['Name'].apply(get_title)
+
+# Get dummies from categorical data and transform in new columns
+train_data = train_data.join(pd.get_dummies(train_data['Embarked'], prefix='Embarked'))
+train_data = train_data.join(pd.get_dummies(train_data['Pclass'], prefix='Class'))
+train_data = train_data.join(pd.get_dummies(train_data['Age_range'], prefix='Age_range'))
+train_data = train_data.join(pd.get_dummies(train_data['Title'], prefix='Title'))
+
+# Drop duplicated remain data
+train_data = train_data.drop([
+    'Name',
+    'Age',
+    'Age_range',
+    'Title',
+    'Embarked',
+    'Pclass'
+    ], axis=1)
+
+# Fix unbalanced data to avoid overfiting
+class_1_data = train_data[train_data['Survived'] == 1]
+train_data = train_data.append(class_1_data.sample(n=207))
+
+# Get train set and target set
+target_data = train_data['Survived']
+train_data = train_data.drop(['Survived'], axis=1)
+
+# Define classifiers to test cleaned data
+clf = DecisionTreeClassifier(random_state=0)
+clf2 = RandomForestClassifier(n_estimators=200, random_state=0, n_jobs=-1, oob_score=True)
+
+# Uses cross-validation to predict and uses to compute metrics
+predicted = cross_val_predict(clf, train_data, target_data, cv=10)
+
+print('Decision Tree:\n')
+print(metrics.classification_report(target_data, predicted))
+
+predicted1 = cross_val_predict(clf2, train_data, target_data, cv=10)
+
+print('Random Forest: \n')
+print(metrics.classification_report(target_data, predicted1))
+
+# Build confusion matrix related to Random Forest Classifier and plot it
+df_evaluate = pd.DataFrame({
+        'y_Predicted': predicted1,
+        'y_Actual': target_data
+    }, columns=['y_Actual','y_Predicted'])
+
+confusion_matrix = pd.crosstab(
+    df_evaluate['y_Actual'],
+    df_evaluate['y_Predicted'],
+    rownames=['Actual'],
+    colnames=['Predicted'])
+
+aux = sn.heatmap(confusion_matrix, annot=True, fmt='d')
+
+# Calculate probalilities related to Random Forest Classifier and plot roc curve
+y_probas = cross_val_predict(clf2, train_data, target_data, cv=10, method='predict_proba')
+aux2 = skplt.metrics.plot_roc(target_data, y_probas)
+
+plt.show()
