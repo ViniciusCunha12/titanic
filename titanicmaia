@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 import scikitplot as skplt
 
 def get_age_range(age):
-    """Function to get age related range based on atual age"""
 
     if age <= 14:
         return 'child'
@@ -22,7 +21,6 @@ def get_age_range(age):
         return 'elderly'
 
 def get_title(name):
-    """Function to get titles from every name in data set"""
 
     titles = ['Mr.', 'Miss.', 'Mrs.', 'Master.', 'Dr.', 'Rev.', 'Major.']
 
